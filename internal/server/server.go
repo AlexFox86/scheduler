@@ -12,7 +12,9 @@ func Start() error {
 	http.Handle("/", http.FileServer(http.Dir(webDir)))
 
 	port := os.Getenv("TODO_PORT")
-	port = ":7540"
+	if port == "" {
+		port = ":7540"
+	}
 
 	fmt.Println("Server is running on port", port)
 

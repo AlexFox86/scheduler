@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -29,6 +30,9 @@ func openDB(t *testing.T) *sqlx.DB {
 	if len(envFile) > 0 {
 		dbfile = envFile
 	}
+
+	fmt.Println("BD file is ", dbfile)
+
 	db, err := sqlx.Connect("sqlite", dbfile)
 	assert.NoError(t, err)
 	return db
