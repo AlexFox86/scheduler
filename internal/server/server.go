@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/AlexFox86/scheduler/internal/api"
 )
 
 // Start starts the server
 func Start() error {
-	webDir := "./web"
-	http.Handle("/", http.FileServer(http.Dir(webDir)))
+	api.Init()
 
 	port := os.Getenv("TODO_PORT")
 	if port == "" {
