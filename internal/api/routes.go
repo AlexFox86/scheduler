@@ -5,8 +5,10 @@ import (
 )
 
 // Init registers all handlers
-func Init() {
+func (h *Handler) Init() {
 	webDir := "./web"
 	http.Handle("/", http.FileServer(http.Dir(webDir)))
-	http.HandleFunc("GET /api/nextdate", NextDayHandler)
+	http.HandleFunc("GET /api/nextdate", h.NextDayHandler)
+	http.HandleFunc("POST /api/task", h.AddTaskHandler)
+	http.HandleFunc("GET /api/tasks", h.GetTasksHandler)
 }

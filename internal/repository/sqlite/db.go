@@ -1,8 +1,14 @@
 package sqlite
 
 import (
-	"database/sql"
+	"context"
+	"fmt"
 	"os"
+	"strconv"
+	"time"
+
+	"github.com/AlexFox86/scheduler/internal/models"
+	"github.com/jmoiron/sqlx"
 )
 
 const schema = `CREATE TABLE scheduler (
@@ -16,7 +22,7 @@ const schema = `CREATE TABLE scheduler (
 
 // Repo the structure for working with SQLite database
 type Repo struct {
-	db *sql.DB
+	db *sqlx.DB
 }
 
 // NewSQLiteRepo creates a new object of 'SQLiteRepo' type
@@ -34,7 +40,7 @@ func (r *Repo) Init(dbFile string) error {
 		install = true
 	}
 
-	r.db, err = sql.Open("sqlite", dbFile)
+	r.db, err = sqlx.Connect("sqlite", dbFile)
 	if err != nil {
 		return err
 	}
@@ -52,4 +58,55 @@ func (r *Repo) Init(dbFile string) error {
 // Close closes the database
 func (r *Repo) Close() {
 	r.db.Close()
+}
+
+// AddTask adds a task to the database
+func (r *Repo) AddTask(ctx context.Context, task models.Task) (string, error) {
+	query := `
+		INSERT INTO scheduler (date, title, comment, repeat)
+		VALUES (:date, :title, :comment, :repeat)`
+
+	res, err := r.db.NamedExecContext(ctx, query, task)
+	if err != nil {
+		return "", fmt.Errorf("failed to add task: %w", err)
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return "", fmt.Errorf("failed to get id: %w", err)
+	}
+
+	return strconv.FormatInt(id, 10), nil
+}
+
+// GetTasks returns records from the database
+// The number of records is limited by the 'limit' parameter
+func (r *Repo) GetTasks(search string, limit int) ([]*models.Task, error) {
+	var query string
+	params := []any{}
+
+	if search == "" {
+		query = `SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date LIMIT ?`
+		params = append(params, limit)
+	} else if t, err := time.Parse("02.01.2006", search); err == nil {
+		time := t.Format(`20060102`)
+		query = `SELECT * FROM scheduler WHERE date = ? ORDER BY date LIMIT ?`
+		params = append(params, time, limit)
+	} else {
+		search = fmt.Sprintf("%%%s%%", search)
+		query = `SELECT * FROM scheduler WHERE title LIKE ? OR comment LIKE ? ORDER BY date LIMIT ?`
+		params = append(params, search, search, limit)
+	}
+
+	return r.getTasksQuery(query, params)
+}
+
+func (r *Repo) getTasksQuery(query string, params []any) ([]*models.Task, error) {
+	tasks := []*models.Task{}
+	err := r.db.Select(&tasks, query, params...)
+	if err != nil {
+		return nil, err
+	}
+
+	return tasks, nil
 }

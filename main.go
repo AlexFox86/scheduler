@@ -5,8 +5,10 @@ import (
 	"log"
 	"os"
 
+	"github.com/AlexFox86/scheduler/internal/api"
 	"github.com/AlexFox86/scheduler/internal/repository/sqlite"
 	"github.com/AlexFox86/scheduler/internal/server"
+	"github.com/AlexFox86/scheduler/internal/service/tasks"
 
 	_ "modernc.org/sqlite"
 )
@@ -27,5 +29,8 @@ func main() {
 		panic(err)
 	}
 
-	log.Fatal(server.Start())
+	taskService := tasks.New(repo)
+	handler := api.NewHandler(taskService)
+
+	log.Fatal(server.Start(handler))
 }

@@ -1,15 +1,31 @@
 package tasks
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/AlexFox86/scheduler/internal/models"
+	"github.com/AlexFox86/scheduler/internal/repository"
 )
 
 const dateFmt = "20060102"
 
-func repeatDays(now time.Time, parsedDate time.Time, parts []string) (time.Time, error) {
+// Service provides methods for the task scheduler
+type Service struct {
+	repo repository.Repo
+}
+
+// New creates a new scheduler service
+func New(repo repository.Repo) *Service {
+	return &Service{
+		repo: repo,
+	}
+}
+
+func (s *Service) repeatDays(now time.Time, parsedDate time.Time, parts []string) (time.Time, error) {
 	if len(parts) == 1 {
 		return time.Time{}, fmt.Errorf("missing day count in 'repeat' parameter")
 	}
@@ -27,7 +43,7 @@ func repeatDays(now time.Time, parsedDate time.Time, parts []string) (time.Time,
 	}
 }
 
-func repeatYears(now time.Time, parsedDate time.Time) (time.Time, error) {
+func (s *Service) repeatYears(now time.Time, parsedDate time.Time) (time.Time, error) {
 	for {
 		parsedDate = parsedDate.AddDate(1, 0, 0)
 		if parsedDate.After(now) {
@@ -37,7 +53,7 @@ func repeatYears(now time.Time, parsedDate time.Time) (time.Time, error) {
 }
 
 // NextDate calculates the next date for the task according to the specified rule
-func NextDate(now time.Time, startDate string, repeat string) (string, error) {
+func (s *Service) NextDate(now time.Time, startDate string, repeat string) (string, error) {
 	if repeat == "" {
 		return "", fmt.Errorf("'repeat' parameter not found")
 	}
@@ -54,13 +70,13 @@ func NextDate(now time.Time, startDate string, repeat string) (string, error) {
 
 	switch parts[0] {
 	case "d":
-		parsedDate, err = repeatDays(now, parsedDate, parts)
+		parsedDate, err = s.repeatDays(now, parsedDate, parts)
 		if err != nil {
 			return "", err
 		}
 
 	case "y":
-		parsedDate, err = repeatYears(now, parsedDate)
+		parsedDate, err = s.repeatYears(now, parsedDate)
 		if err != nil {
 			return "", err
 		}
@@ -70,4 +86,65 @@ func NextDate(now time.Time, startDate string, repeat string) (string, error) {
 	}
 
 	return parsedDate.Format(dateFmt), nil
+}
+
+func (s *Service) checkDate(task *models.Task) error {
+	now := time.Now()
+	today := now.Format(dateFmt)
+
+	if task.Date == "" {
+		task.Date = now.Format(dateFmt)
+		return nil
+	}
+
+	parsedDate, err := time.Parse(dateFmt, task.Date)
+	if err != nil {
+		return fmt.Errorf("invalid 'Date' param")
+	}
+
+	if task.Date == today {
+		return nil
+	}
+
+	if parsedDate.Before(now) {
+		if task.Repeat == "" {
+			task.Date = now.Format(dateFmt)
+		} else {
+			nextDate, err := s.NextDate(now, task.Date, task.Repeat)
+			if err != nil {
+				return err
+			}
+			task.Date = nextDate
+		}
+	}
+
+	return nil
+}
+
+// AddTask adds a task to the database
+func (s *Service) AddTask(ctx context.Context, task models.Task) (string, error) {
+	if task.Title == "" {
+		return "", fmt.Errorf("empty 'Title' param")
+	}
+
+	err := s.checkDate(&task)
+	if err != nil {
+		return "", err
+	}
+
+	id, err := s.repo.AddTask(ctx, task)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// Tasks returns records from the database
+// The number of records is limited by the 'limit' parameter
+func (s *Service) Tasks(search string, limit int) ([]*models.Task, error) {
+	tasks, err := s.repo.GetTasks(search, limit)
+	if err != nil {
+		return tasks, err
+	}
+	return tasks, nil
 }

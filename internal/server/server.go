@@ -9,8 +9,8 @@ import (
 )
 
 // Start starts the server
-func Start() error {
-	api.Init()
+func Start(handler *api.Handler) error {
+	handler.Init()
 
 	port := os.Getenv("TODO_PORT")
 	if port == "" {
