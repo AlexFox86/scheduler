@@ -1,7 +1,6 @@
 package tasks
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -122,7 +121,7 @@ func (s *Service) checkDate(task *models.Task) error {
 }
 
 // AddTask adds a task to the database
-func (s *Service) AddTask(ctx context.Context, task models.Task) (string, error) {
+func (s *Service) AddTask(task models.Task) (string, error) {
 	if task.Title == "" {
 		return "", fmt.Errorf("empty 'Title' param")
 	}
@@ -132,7 +131,7 @@ func (s *Service) AddTask(ctx context.Context, task models.Task) (string, error)
 		return "", err
 	}
 
-	id, err := s.repo.AddTask(ctx, task)
+	id, err := s.repo.AddTask(task)
 	if err != nil {
 		return "", err
 	}
@@ -147,4 +146,32 @@ func (s *Service) Tasks(search string, limit int) ([]*models.Task, error) {
 		return tasks, err
 	}
 	return tasks, nil
+}
+
+// Task returns record from the database by id
+func (s *Service) Task(id string) (models.Task, error) {
+	tasks, err := s.repo.GetTask(id)
+	if err != nil {
+		return tasks, err
+	}
+	return tasks, nil
+}
+
+// Update updates a record in the database
+func (s *Service) Update(task *models.Task) error {
+	if task.Title == "" {
+		return fmt.Errorf("empty 'Title' param")
+	}
+
+	err := s.checkDate(task)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.UpdateTask(task)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

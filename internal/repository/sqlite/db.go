@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -61,12 +60,12 @@ func (r *Repo) Close() {
 }
 
 // AddTask adds a task to the database
-func (r *Repo) AddTask(ctx context.Context, task models.Task) (string, error) {
+func (r *Repo) AddTask(task models.Task) (string, error) {
 	query := `
 		INSERT INTO scheduler (date, title, comment, repeat)
 		VALUES (:date, :title, :comment, :repeat)`
 
-	res, err := r.db.NamedExecContext(ctx, query, task)
+	res, err := r.db.NamedExec(query, task)
 	if err != nil {
 		return "", fmt.Errorf("failed to add task: %w", err)
 	}
@@ -109,4 +108,39 @@ func (r *Repo) getTasksQuery(query string, params []any) ([]*models.Task, error)
 	}
 
 	return tasks, nil
+}
+
+// GetTask returns record from the database by id
+func (r *Repo) GetTask(id string) (models.Task, error) {
+	task := models.Task{}
+	query := `SELECT * FROM scheduler WHERE id = ? ORDER BY date`
+
+	err := r.db.Get(&task, query, id)
+
+	if err != nil {
+		return models.Task{}, err
+	}
+
+	return task, nil
+}
+
+// UpdateTask updates a record in the database
+func (r *Repo) UpdateTask(task *models.Task) error {
+	query := `UPDATE scheduler SET date = :date, title = :title, comment = :comment, repeat = :repeat WHERE id = :id`
+
+	res, err := r.db.NamedExec(query, task)
+	if err != nil {
+		return fmt.Errorf("failed to update task: %w", err)
+	}
+
+	count, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if count == 0 {
+		return fmt.Errorf("task with id %s not found", task.ID)
+	}
+
+	return nil
 }

@@ -71,7 +71,7 @@ func (h *Handler) AddTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := h.service.AddTask(r.Context(), task)
+	id, err := h.service.AddTask(task)
 	if err != nil {
 		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
 		return
@@ -92,4 +92,35 @@ func (h *Handler) GetTasksHandler(w http.ResponseWriter, r *http.Request) {
 	h.writeData(w, dto.TasksResp{
 		Tasks: tasks,
 	}, http.StatusOK)
+}
+
+// GetTaskHandler processes the 'GET /api/task' request
+func (h *Handler) GetTaskHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+
+	task, err := h.service.Task(id)
+	if err != nil {
+		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		return
+	}
+
+	h.writeData(w, task, http.StatusOK)
+}
+
+// UpdateTaskHandler processes the 'PUT /api/task' request
+func (h *Handler) UpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
+	var task models.Task
+
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		return
+	}
+
+	err := h.service.Update(&task)
+	if err != nil {
+		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		return
+	}
+
+	h.writeData(w, dto.Response{}, http.StatusOK)
 }
