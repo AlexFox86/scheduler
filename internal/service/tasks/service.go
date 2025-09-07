@@ -131,26 +131,34 @@ func (s *Service) AddTask(task models.Task) (string, error) {
 		return "", err
 	}
 
-	id, err := s.repo.AddTask(task)
+	id, err := s.repo.Add(task)
 	if err != nil {
 		return "", err
 	}
 	return id, nil
 }
 
-// Tasks returns records from the database
+// GetTasks returns records from the database
 // The number of records is limited by the 'limit' parameter
-func (s *Service) Tasks(search string, limit int) ([]*models.Task, error) {
-	tasks, err := s.repo.GetTasks(search, limit)
+func (s *Service) GetTasks(search string, limit int) ([]*models.Task, error) {
+	if limit < 1 || limit > 50 {
+		return nil, fmt.Errorf("invalid 'limit' param")
+	}
+
+	tasks, err := s.repo.GetBySearch(search, limit)
 	if err != nil {
-		return tasks, err
+		return nil, err
 	}
 	return tasks, nil
 }
 
-// Task returns record from the database by id
-func (s *Service) Task(id string) (models.Task, error) {
-	tasks, err := s.repo.GetTask(id)
+// GetTask returns record from the database by id
+func (s *Service) GetTask(id string) (models.Task, error) {
+	if id == "" {
+		return models.Task{}, fmt.Errorf("empty 'id' param")
+	}
+
+	tasks, err := s.repo.Get(id)
 	if err != nil {
 		return tasks, err
 	}
@@ -168,10 +176,57 @@ func (s *Service) Update(task *models.Task) error {
 		return err
 	}
 
-	err = s.repo.UpdateTask(task)
+	err = s.repo.UpdateRecord(task)
 	if err != nil {
 		return err
 	}
 
+	return nil
+}
+
+// DoneTask confirms the completion of the task
+func (s *Service) DoneTask(id string) error {
+	if id == "" {
+		return fmt.Errorf("empty 'id' param")
+	}
+
+	task, err := s.repo.Get(id)
+	if err != nil {
+		return err
+	}
+
+	if task.Repeat == "" {
+		err = s.repo.Delete(id)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	now := time.Now()
+	newDate, err := s.NextDate(now, task.Date, task.Repeat)
+	if err != nil {
+		return err
+	}
+
+	task.Date = newDate
+
+	err = s.repo.UpdateDate(&task)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// DeleteTask deletes record from the database by id
+func (s *Service) DeleteTask(id string) error {
+	if id == "" {
+		return fmt.Errorf("empty 'id' param")
+	}
+
+	err := s.repo.Delete(id)
+	if err != nil {
+		return err
+	}
 	return nil
 }

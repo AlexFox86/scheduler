@@ -6,10 +6,10 @@ import (
 
 // Repo interface for working with storage
 type Repo interface {
-	AddTask(task models.Task) (string, error)
-	GetTasks(search string, limit int) ([]*models.Task, error)
-	GetTask(id string) (models.Task, error)
-	UpdateTask(task *models.Task) error
-	//DeleteTask() error
-	//TaskDone() error
+	Add(task models.Task) (string, error)
+	Get(id string) (models.Task, error)
+	GetBySearch(search string, limit int) ([]*models.Task, error)
+	UpdateRecord(task *models.Task) error
+	Delete(id string) error
+	UpdateDate(task *models.Task) error
 }

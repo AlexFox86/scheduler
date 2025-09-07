@@ -84,7 +84,7 @@ func (h *Handler) AddTaskHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetTasksHandler(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("search")
 
-	tasks, err := h.service.Tasks(search, 50)
+	tasks, err := h.service.GetTasks(search, 50)
 	if err != nil {
 		h.writeData(w, err, http.StatusBadRequest)
 		return
@@ -98,7 +98,7 @@ func (h *Handler) GetTasksHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetTaskHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 
-	task, err := h.service.Task(id)
+	task, err := h.service.GetTask(id)
 	if err != nil {
 		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
 		return
@@ -117,6 +117,32 @@ func (h *Handler) UpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.service.Update(&task)
+	if err != nil {
+		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		return
+	}
+
+	h.writeData(w, dto.Response{}, http.StatusOK)
+}
+
+// DoneTaskHandler processes the 'POST /api/task/done' request
+func (h *Handler) DoneTaskHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+
+	err := h.service.DoneTask(id)
+	if err != nil {
+		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		return
+	}
+
+	h.writeData(w, dto.Response{}, http.StatusOK)
+}
+
+// DeleteTaskHandler processes the 'DELETE /api/task' request
+func (h *Handler) DeleteTaskHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+
+	err := h.service.DeleteTask(id)
 	if err != nil {
 		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
 		return

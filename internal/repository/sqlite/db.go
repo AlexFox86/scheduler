@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"strconv"
@@ -59,8 +60,8 @@ func (r *Repo) Close() {
 	r.db.Close()
 }
 
-// AddTask adds a task to the database
-func (r *Repo) AddTask(task models.Task) (string, error) {
+// Add adds a task to the database
+func (r *Repo) Add(task models.Task) (string, error) {
 	query := `
 		INSERT INTO scheduler (date, title, comment, repeat)
 		VALUES (:date, :title, :comment, :repeat)`
@@ -78,9 +79,9 @@ func (r *Repo) AddTask(task models.Task) (string, error) {
 	return strconv.FormatInt(id, 10), nil
 }
 
-// GetTasks returns records from the database
+// GetBySearch returns records from the database
 // The number of records is limited by the 'limit' parameter
-func (r *Repo) GetTasks(search string, limit int) ([]*models.Task, error) {
+func (r *Repo) GetBySearch(search string, limit int) ([]*models.Task, error) {
 	var query string
 	params := []any{}
 
@@ -110,13 +111,12 @@ func (r *Repo) getTasksQuery(query string, params []any) ([]*models.Task, error)
 	return tasks, nil
 }
 
-// GetTask returns record from the database by id
-func (r *Repo) GetTask(id string) (models.Task, error) {
+// Get returns record from the database by id
+func (r *Repo) Get(id string) (models.Task, error) {
 	task := models.Task{}
 	query := `SELECT * FROM scheduler WHERE id = ? ORDER BY date`
 
 	err := r.db.Get(&task, query, id)
-
 	if err != nil {
 		return models.Task{}, err
 	}
@@ -124,10 +124,8 @@ func (r *Repo) GetTask(id string) (models.Task, error) {
 	return task, nil
 }
 
-// UpdateTask updates a record in the database
-func (r *Repo) UpdateTask(task *models.Task) error {
-	query := `UPDATE scheduler SET date = :date, title = :title, comment = :comment, repeat = :repeat WHERE id = :id`
-
+// UpdateQuery send query for updates a record in the database
+func (r *Repo) UpdateQuery(query string, task *models.Task) error {
 	res, err := r.db.NamedExec(query, task)
 	if err != nil {
 		return fmt.Errorf("failed to update task: %w", err)
@@ -140,6 +138,51 @@ func (r *Repo) UpdateTask(task *models.Task) error {
 
 	if count == 0 {
 		return fmt.Errorf("task with id %s not found", task.ID)
+	}
+
+	return nil
+}
+
+// UpdateRecord updates a record in the database
+func (r *Repo) UpdateRecord(task *models.Task) error {
+	query := `UPDATE scheduler SET date = :date, title = :title, comment = :comment, repeat = :repeat WHERE id = :id`
+
+	err := r.UpdateQuery(query, task)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateDate updates the 'date' field in the database
+func (r *Repo) UpdateDate(task *models.Task) error {
+	query := `UPDATE scheduler SET date = :date WHERE id = :id`
+
+	err := r.UpdateQuery(query, task)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Delete deletes record from the database by id
+func (r *Repo) Delete(id string) error {
+	query := `DELETE FROM scheduler WHERE id = :id`
+
+	res, err := r.db.Exec(query, sql.Named("id", id))
+	if err != nil {
+		return fmt.Errorf("failed to delete task: %w", err)
+	}
+
+	count, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if count == 0 {
+		return fmt.Errorf("task with id %s not found", id)
 	}
 
 	return nil
