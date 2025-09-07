@@ -8,6 +8,7 @@ import (
 	"github.com/AlexFox86/scheduler/internal/api"
 	"github.com/AlexFox86/scheduler/internal/repository/sqlite"
 	"github.com/AlexFox86/scheduler/internal/server"
+	"github.com/AlexFox86/scheduler/internal/service/auth"
 	"github.com/AlexFox86/scheduler/internal/service/tasks"
 
 	_ "modernc.org/sqlite"
@@ -30,7 +31,8 @@ func main() {
 	}
 
 	taskService := tasks.New(repo)
-	handler := api.NewHandler(taskService)
+	authService := auth.New(os.Getenv("SECRET"))
+	handler := api.NewHandler(taskService, authService)
 
 	log.Fatal(server.Start(handler))
 }

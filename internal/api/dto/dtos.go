@@ -10,13 +10,31 @@ type AddTaskRequest struct {
 	Repeat  string `json:"repeat"`
 }
 
-// Response response with an ID or Error
-type Response struct {
-	ID    string `json:"id,omitempty"`
-	Error string `json:"error,omitempty"`
+// LoginRequest login request
+type LoginRequest struct {
+	Password string `json:"password"`
+}
+
+// ResponseID response with an ID
+type ResponseID struct {
+	ID string `json:"id,omitempty"`
 }
 
 // TasksResp response with a list of tasks
 type TasksResp struct {
 	Tasks []*models.Task `json:"tasks"`
+}
+
+// ResponseToken response with a token
+type ResponseToken struct {
+	Token string `json:"token,omitempty"`
+}
+
+// ErrorResponse response with a error
+type ErrorResponse struct {
+	Error string `json:"error,omitempty"`
+}
+
+// EmptyResponse emty response
+type EmptyResponse struct {
 }

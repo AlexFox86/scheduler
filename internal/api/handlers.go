@@ -7,6 +7,7 @@ import (
 
 	"github.com/AlexFox86/scheduler/internal/api/dto"
 	"github.com/AlexFox86/scheduler/internal/models"
+	"github.com/AlexFox86/scheduler/internal/service/auth"
 	"github.com/AlexFox86/scheduler/internal/service/tasks"
 )
 
@@ -14,13 +15,15 @@ const dateFmt = "20060102"
 
 // Handler provides HTTP handlers for authentication
 type Handler struct {
-	service *tasks.Service
+	tasks *tasks.Service
+	auth  *auth.Service
 }
 
 // NewHandler creates a new Handler
-func NewHandler(service *tasks.Service) *Handler {
+func NewHandler(tasks *tasks.Service, auth *auth.Service) *Handler {
 	return &Handler{
-		service: service,
+		tasks: tasks,
+		auth:  auth,
 	}
 }
 
@@ -51,7 +54,7 @@ func (h *Handler) NextDayHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	nextDate, err := h.service.NextDate(now, dateForm, repeatForm)
+	nextDate, err := h.tasks.NextDate(now, dateForm, repeatForm)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -67,24 +70,24 @@ func (h *Handler) AddTaskHandler(w http.ResponseWriter, r *http.Request) {
 	var task models.Task
 
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
-		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		h.writeData(w, dto.ErrorResponse{Error: err.Error()}, http.StatusBadRequest)
 		return
 	}
 
-	id, err := h.service.AddTask(task)
+	id, err := h.tasks.AddTask(task)
 	if err != nil {
-		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		h.writeData(w, dto.ErrorResponse{Error: err.Error()}, http.StatusBadRequest)
 		return
 	}
 
-	h.writeData(w, dto.Response{ID: id}, http.StatusOK)
+	h.writeData(w, dto.ResponseID{ID: id}, http.StatusOK)
 }
 
 // GetTasksHandler processes the 'GET /api/tasks' request
 func (h *Handler) GetTasksHandler(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("search")
 
-	tasks, err := h.service.GetTasks(search, 50)
+	tasks, err := h.tasks.GetTasks(search, 50)
 	if err != nil {
 		h.writeData(w, err, http.StatusBadRequest)
 		return
@@ -98,9 +101,9 @@ func (h *Handler) GetTasksHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetTaskHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 
-	task, err := h.service.GetTask(id)
+	task, err := h.tasks.GetTask(id)
 	if err != nil {
-		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		h.writeData(w, dto.ErrorResponse{Error: err.Error()}, http.StatusBadRequest)
 		return
 	}
 
@@ -112,41 +115,59 @@ func (h *Handler) UpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
 	var task models.Task
 
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
-		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		h.writeData(w, dto.ErrorResponse{Error: err.Error()}, http.StatusBadRequest)
 		return
 	}
 
-	err := h.service.Update(&task)
+	err := h.tasks.Update(&task)
 	if err != nil {
-		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		h.writeData(w, dto.ErrorResponse{Error: err.Error()}, http.StatusBadRequest)
 		return
 	}
 
-	h.writeData(w, dto.Response{}, http.StatusOK)
+	h.writeData(w, dto.EmptyResponse{}, http.StatusOK)
 }
 
 // DoneTaskHandler processes the 'POST /api/task/done' request
 func (h *Handler) DoneTaskHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 
-	err := h.service.DoneTask(id)
+	err := h.tasks.DoneTask(id)
 	if err != nil {
-		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		h.writeData(w, dto.ErrorResponse{Error: err.Error()}, http.StatusBadRequest)
 		return
 	}
 
-	h.writeData(w, dto.Response{}, http.StatusOK)
+	h.writeData(w, dto.EmptyResponse{}, http.StatusOK)
 }
 
 // DeleteTaskHandler processes the 'DELETE /api/task' request
 func (h *Handler) DeleteTaskHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 
-	err := h.service.DeleteTask(id)
+	err := h.tasks.DeleteTask(id)
 	if err != nil {
-		h.writeData(w, dto.Response{Error: err.Error()}, http.StatusBadRequest)
+		h.writeData(w, dto.ErrorResponse{Error: err.Error()}, http.StatusBadRequest)
 		return
 	}
 
-	h.writeData(w, dto.Response{}, http.StatusOK)
+	h.writeData(w, dto.EmptyResponse{}, http.StatusOK)
+}
+
+// LoginHandler processes the 'POST /api/signin' request
+func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
+	var login dto.LoginRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&login); err != nil {
+		h.writeData(w, dto.ErrorResponse{Error: err.Error()}, http.StatusBadRequest)
+		return
+	}
+
+	token, err := h.auth.Login(login.Password)
+	if err != nil {
+		h.writeData(w, dto.ErrorResponse{Error: err.Error()}, http.StatusBadRequest)
+		return
+	}
+
+	h.writeData(w, dto.ResponseToken{Token: token}, http.StatusOK)
 }
