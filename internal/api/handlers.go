@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/AlexFox86/scheduler/internal/api/dto"
 	"github.com/AlexFox86/scheduler/internal/models"
@@ -41,20 +40,7 @@ func (h *Handler) NextDayHandler(w http.ResponseWriter, r *http.Request) {
 	nowForm := r.FormValue("now")
 	dateForm := r.FormValue("date")
 
-	var err error
-	var now time.Time
-
-	if nowForm == "" {
-		now = time.Now()
-	} else {
-		now, err = time.Parse(dateFmt, nowForm)
-		if err != nil {
-			http.Error(w, "invalid 'now' parameter", http.StatusBadRequest)
-			return
-		}
-	}
-
-	nextDate, err := h.tasks.NextDate(now, dateForm, repeatForm)
+	nextDate, err := h.tasks.NextDate(nowForm, dateForm, repeatForm)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

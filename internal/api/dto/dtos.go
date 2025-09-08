@@ -35,6 +35,6 @@ type ErrorResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
-// EmptyResponse emty response
+// EmptyResponse empty response
 type EmptyResponse struct {
 }

@@ -52,7 +52,19 @@ func (s *Service) repeatYears(now time.Time, parsedDate time.Time) (time.Time, e
 }
 
 // NextDate calculates the next date for the task according to the specified rule
-func (s *Service) NextDate(now time.Time, startDate string, repeat string) (string, error) {
+func (s *Service) NextDate(nowStr string, startDate string, repeat string) (string, error) {
+	var err error
+	var now time.Time
+
+	if nowStr == "" {
+		now = time.Now()
+	} else {
+		now, err = time.Parse(dateFmt, nowStr)
+		if err != nil {
+			return "", fmt.Errorf("invalid 'now' parameter")
+		}
+	}
+
 	if repeat == "" {
 		return "", fmt.Errorf("'repeat' parameter not found")
 	}
@@ -109,7 +121,7 @@ func (s *Service) checkDate(task *models.Task) error {
 		if task.Repeat == "" {
 			task.Date = now.Format(dateFmt)
 		} else {
-			nextDate, err := s.NextDate(now, task.Date, task.Repeat)
+			nextDate, err := s.NextDate(now.Format("20060102"), task.Date, task.Repeat)
 			if err != nil {
 				return err
 			}
@@ -203,7 +215,7 @@ func (s *Service) DoneTask(id string) error {
 		return nil
 	}
 
-	now := time.Now()
+	now := time.Now().Format("20060102")
 	newDate, err := s.NextDate(now, task.Date, task.Repeat)
 	if err != nil {
 		return err
