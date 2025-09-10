@@ -2,6 +2,8 @@ package tasks
 
 import (
 	"fmt"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -24,14 +26,14 @@ func New(repo repository.Repo) *Service {
 	}
 }
 
-func (s *Service) repeatDays(now time.Time, parsedDate time.Time, parts []string) (time.Time, error) {
-	if len(parts) == 1 {
+func (s *Service) repeatDay(now time.Time, parsedDate time.Time, repeat []string) (time.Time, error) {
+	if len(repeat) < 2 {
 		return time.Time{}, fmt.Errorf("missing day count in 'repeat' parameter")
 	}
 
-	days, err := strconv.Atoi(parts[1])
+	days, err := strconv.Atoi(repeat[1])
 	if err != nil || days <= 0 || days > 400 {
-		return time.Time{}, fmt.Errorf("invalid day count in 'repeat' parameter")
+		return time.Time{}, fmt.Errorf("incorrect day value in 'repeat' parameter")
 	}
 
 	for {
@@ -42,13 +44,160 @@ func (s *Service) repeatDays(now time.Time, parsedDate time.Time, parts []string
 	}
 }
 
-func (s *Service) repeatYears(now time.Time, parsedDate time.Time) (time.Time, error) {
+func (s *Service) repeatYear(now time.Time, parsedDate time.Time) (time.Time, error) {
 	for {
 		parsedDate = parsedDate.AddDate(1, 0, 0)
 		if parsedDate.After(now) {
 			return parsedDate, nil
 		}
 	}
+}
+
+func getNumDay(day time.Weekday) int {
+	if day == 0 {
+		day = 7
+	}
+
+	return int(day)
+}
+
+func (s *Service) repeatWeek(now time.Time, repeat []string) (time.Time, error) {
+	if len(repeat) < 2 {
+		return time.Time{}, fmt.Errorf("missing day count in 'repeat' parameter")
+	}
+
+	nowDay := getNumDay(now.Weekday())
+	dayNums := strings.Split(repeat[1], ",")
+	minDay := math.MaxInt32
+
+	for _, dayStr := range dayNums {
+		day, err := strconv.Atoi(dayStr)
+		if err != nil {
+			return time.Time{}, err
+		}
+
+		if day < 1 || day > 7 {
+			return time.Time{}, fmt.Errorf("incorrect day in 'repeat' parameter")
+		}
+
+		diff := (day - nowDay + 7) % 7
+		if diff == 0 {
+			diff = 7
+		}
+
+		if diff < minDay {
+			minDay = diff
+		}
+	}
+
+	return now.AddDate(0, 0, minDay), nil
+}
+
+func daysInMonth(year int, month time.Month) int {
+	return time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
+func (s *Service) getDaysFromRepeat(repeat []string) ([]int, error) {
+	var days []int
+	for s := range strings.SplitSeq(repeat[1], ",") {
+		day, err := strconv.Atoi(s)
+		if err != nil {
+			return nil, err
+		}
+		if day < -2 || day == 0 || day > 31 {
+			return nil, fmt.Errorf("invalid day [-2,-1, 1...31]")
+		}
+		days = append(days, day)
+	}
+
+	return days, nil
+}
+
+func (s *Service) getMonthsFromRepeat(repeat []string) ([]int, error) {
+	var months []int
+	if len(repeat) == 3 {
+		for s := range strings.SplitSeq(repeat[2], ",") {
+			month, err := strconv.Atoi(s)
+			if err != nil {
+				return nil, err
+			}
+			if month < 1 || month > 12 {
+				return nil, fmt.Errorf("invalid month [1:12]")
+			}
+			months = append(months, month)
+		}
+	} else {
+		for i := 1; i <= 12; i++ {
+			months = append(months, i)
+		}
+	}
+
+	return months, nil
+}
+
+func calcDateForMonth(now time.Time, parsedDate time.Time, days []int, months []int) (time.Time, error) {
+	var current time.Time
+	if parsedDate.After(now) {
+		current = parsedDate.AddDate(0, 0, 1)
+	} else {
+		current = now.AddDate(0, 0, 1)
+	}
+
+	nearest := parsedDate
+
+	for range 2 {
+		for month := 1; month <= 12; month++ {
+			if !slices.Contains(months, month) {
+				continue
+			}
+
+			for _, rule := range days {
+				var day int
+				switch rule {
+				case -1:
+					day = daysInMonth(current.Year(), time.Month(month))
+				case -2:
+					day = daysInMonth(current.Year(), time.Month(month)) - 1
+				default:
+					day = rule
+				}
+
+				if day < 1 || day > daysInMonth(current.Year(), time.Month(month)) {
+					continue
+				}
+
+				date := time.Date(current.Year(), time.Month(month), day, 0, 0, 0, 0, time.UTC)
+
+				if date.After(now) && date.After(parsedDate) {
+					if nearest.Equal(parsedDate) || nearest.After(date) {
+						nearest = date
+					}
+				}
+			}
+		}
+
+		current = time.Date(current.Year()+1, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
+
+	return nearest, nil
+}
+
+func (s *Service) repeatMonth(now time.Time, parsedDate time.Time, repeat []string) (time.Time, error) {
+	if len(repeat) < 2 {
+		return time.Time{}, fmt.Errorf("missing day count in 'repeat' parameter")
+	}
+
+	days, err := s.getDaysFromRepeat(repeat)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	months, err := s.getMonthsFromRepeat(repeat)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return calcDateForMonth(now, parsedDate, days, months)
 }
 
 // NextDate calculates the next date for the task according to the specified rule
@@ -81,13 +230,25 @@ func (s *Service) NextDate(nowStr string, startDate string, repeat string) (stri
 
 	switch parts[0] {
 	case "d":
-		parsedDate, err = s.repeatDays(now, parsedDate, parts)
+		parsedDate, err = s.repeatDay(now, parsedDate, parts)
 		if err != nil {
 			return "", err
 		}
 
 	case "y":
-		parsedDate, err = s.repeatYears(now, parsedDate)
+		parsedDate, err = s.repeatYear(now, parsedDate)
+		if err != nil {
+			return "", err
+		}
+
+	case "w":
+		parsedDate, err = s.repeatWeek(now, parts)
+		if err != nil {
+			return "", err
+		}
+
+	case "m":
+		parsedDate, err = s.repeatMonth(now, parsedDate, parts)
 		if err != nil {
 			return "", err
 		}
@@ -121,7 +282,7 @@ func (s *Service) checkDate(task *models.Task) error {
 		if task.Repeat == "" {
 			task.Date = now.Format(dateFmt)
 		} else {
-			nextDate, err := s.NextDate(now.Format("20060102"), task.Date, task.Repeat)
+			nextDate, err := s.NextDate(now.Format(dateFmt), task.Date, task.Repeat)
 			if err != nil {
 				return err
 			}
@@ -215,7 +376,7 @@ func (s *Service) DoneTask(id string) error {
 		return nil
 	}
 
-	now := time.Now().Format("20060102")
+	now := time.Now().Format(dateFmt)
 	newDate, err := s.NextDate(now, task.Date, task.Repeat)
 	if err != nil {
 		return err

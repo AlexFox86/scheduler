@@ -21,8 +21,8 @@ func main() {
 		dbFile = "scheduler.db"
 	}
 
+	// Init repository
 	repo := sqlite.NewSQLiteRepo()
-
 	err := repo.Init(dbFile)
 	defer repo.Close()
 
@@ -30,9 +30,15 @@ func main() {
 		panic(err)
 	}
 
+	// Create a new scheduler service
 	taskService := tasks.New(repo)
+
+	// Create a new auth service
 	authService := auth.New(os.Getenv("SECRET"))
+
+	// Init handlers and api module
 	handler := api.NewHandler(taskService, authService)
 
+	// Start server
 	log.Fatal(server.Start(handler))
 }
